@@ -29,7 +29,7 @@ const freemiumLimit = time.Second * 10
 
 // HandleRequest runs the processes requested by users. Returns false
 // if process had to be killed
-func HandleRequest(process func(), u *User) bool {
+func HandleRequest(process func(context.Context), u *User) bool {
 	ctx := context.Background()
 	var cancel context.CancelFunc
 
@@ -45,19 +45,17 @@ func HandleRequest(process func(), u *User) bool {
 		defer cancel()
 	}
 
-	go func() {
-		process() // to kill the process this function should be context friendly
+	go func(c context.Context) {
+		// process() // to kill the process this function should be context friendly
+		process(c)
 		close(done)
-	}()
+	}(ctx)
 
-	for {
-		select {
-		case <-ctx.Done():
-			cancel()
-			return false
-		case <-done:
-			return true
-		}
+	select {
+	case <-ctx.Done():
+		return false
+	case <-done:
+		return true
 	}
 }
 

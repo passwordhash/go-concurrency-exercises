@@ -7,6 +7,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -37,7 +38,7 @@ func RunMockServer() {
 	wg.Wait()
 }
 
-func createMockRequest(pid int, fn func(), u *User) {
+func createMockRequest(pid int, fn func(context.Context), u *User) {
 	fmt.Println("UserID:", u.ID, "\tProcess", pid, "started.")
 	res := HandleRequest(fn, u)
 
@@ -50,10 +51,16 @@ func createMockRequest(pid int, fn func(), u *User) {
 	wg.Done()
 }
 
-func shortProcess() {
-	time.Sleep(6 * time.Second)
+func shortProcess(ctx context.Context) {
+	select {
+	case <-time.After(6 * time.Second):
+	case <-ctx.Done():
+	}
 }
 
-func longProcess() {
-	time.Sleep(11 * time.Second)
+func longProcess(ctx context.Context) {
+	select {
+	case <-time.After(11 * time.Second):
+	case <-ctx.Done():
+	}
 }
