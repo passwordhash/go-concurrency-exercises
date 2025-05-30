@@ -10,19 +10,55 @@
 
 package main
 
+import (
+	"context"
+	"sync"
+	"time"
+)
+
 // User defines the UserModel. Use this to check whether a User is a
 // Premium user or not
 type User struct {
 	ID        int
 	IsPremium bool
-	TimeUsed  int64 // in seconds
+	rw        sync.RWMutex // unnecessary for this task, but good practice
+	TimeUsed  time.Duration
 }
+
+const freemiumLimit = time.Second * 10
 
 // HandleRequest runs the processes requested by users. Returns false
 // if process had to be killed
 func HandleRequest(process func(), u *User) bool {
-	process()
-	return true
+	ctx := context.Background()
+	var cancel context.CancelFunc
+
+	u.rw.RLock()
+	remaining := freemiumLimit - u.TimeUsed
+	u.rw.RUnlock()
+	// log.Println("REMAINING TIME: ", remaining)
+
+	done := make(chan struct{})
+
+	if !u.IsPremium {
+		ctx, cancel = context.WithTimeout(ctx, remaining)
+		defer cancel()
+	}
+
+	go func() {
+		process() // to kill the process this function should be context friendly
+		close(done)
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			cancel()
+			return false
+		case <-done:
+			return true
+		}
+	}
 }
 
 func main() {
